@@ -219,9 +219,9 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
      */
     private void drawPortalFrame(GL2 gl, float x, float z,
                                   float r, float g, float b, int fboTexId, boolean isZAligned) {
-        float radiusX = 0.8f;
-        float radiusY = 1.25f;
-        float centerY = 1.25f;
+        float radiusX = 0.5f;
+        float radiusY = 1.0f;
+        float centerY = 2.0f;
         int segments = 32;
         boolean hasTexture = (fboTexId > 0);
 
@@ -275,8 +275,8 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
 
         float glow = 0.7f + 0.3f * (float) Math.sin(glowPhase);
-        float ringThick = 0.15f;
-        float glowThick = 0.25f;
+        float ringThick = 0.1f;
+        float glowThick = 0.2f;
 
         // X-Aligned Rings
         if (!isZAligned) {
@@ -587,13 +587,14 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
             nextX -= Math.cos(Math.toRadians(cameraAngle)) * currentSpeed;
             nextZ -= Math.sin(Math.toRadians(cameraAngle)) * currentSpeed;
         }
+        int flipDir = isGravityFlipped ? -1 : 1;
         if (aPressed) {
-            nextX += Math.cos(Math.toRadians(cameraAngle - 90)) * currentSpeed;
-            nextZ += Math.sin(Math.toRadians(cameraAngle - 90)) * currentSpeed;
+            nextX += Math.cos(Math.toRadians(cameraAngle - 90 * flipDir)) * currentSpeed;
+            nextZ += Math.sin(Math.toRadians(cameraAngle - 90 * flipDir)) * currentSpeed;
         }
         if (dPressed) {
-            nextX += Math.cos(Math.toRadians(cameraAngle + 90)) * currentSpeed;
-            nextZ += Math.sin(Math.toRadians(cameraAngle + 90)) * currentSpeed;
+            nextX += Math.cos(Math.toRadians(cameraAngle + 90 * flipDir)) * currentSpeed;
+            nextZ += Math.sin(Math.toRadians(cameraAngle + 90 * flipDir)) * currentSpeed;
         }
 
         if (isValidPosition(nextX, cameraZ))
@@ -601,14 +602,16 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         if (isValidPosition(cameraX, nextZ))
             cameraZ = nextZ;
 
+        float floorY = isGravityFlipped ? (wallHeight - PLAYER_HEIGHT) : PLAYER_HEIGHT;
         if (spacePressed && !isJumping) {
-            verticalVelocity = JUMP_STRENGTH;
+            verticalVelocity = isGravityFlipped ? -JUMP_STRENGTH : JUMP_STRENGTH;
             isJumping = true;
         }
         cameraY += verticalVelocity;
-        verticalVelocity -= GRAVITY;
-        if (cameraY <= PLAYER_HEIGHT) {
-            cameraY = PLAYER_HEIGHT;
+        verticalVelocity += isGravityFlipped ? GRAVITY : -GRAVITY;
+        
+        if ((!isGravityFlipped && cameraY <= floorY) || (isGravityFlipped && cameraY >= floorY)) {
+            cameraY = floorY;
             verticalVelocity = 0.0f;
             isJumping = false;
         }
@@ -834,7 +837,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         }
 
         int deltaX = e.getX() - centerX;
-        cameraAngle += deltaX * mouseSensitivity;
+        cameraAngle += (isGravityFlipped ? -deltaX : deltaX) * mouseSensitivity;
         updateLook();
 
         window.warpPointer(centerX, centerY);
