@@ -664,7 +664,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         // Draw Portal A (Blue) — live view from Portal B (texIdA)
         float[] pA = gridTo3D(1, 2);
-        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f, texIdA[0], false);
+        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f, texIdA[0], true);
 
         // Draw Portal B (Orange) — live view from Portal A (texIdB)
         float[] pB = gridTo3D(8, 7);
