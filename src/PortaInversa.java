@@ -15,6 +15,13 @@ import com.jogamp.newt.event.MouseEvent;
 import com.jogamp.opengl.util.FPSAnimator;
 import java.awt.Font;
 import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.TextureIO;
+import java.io.File;
+import java.io.IOException;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 public class PortaInversa implements GLEventListener, KeyListener, MouseListener {
 
@@ -37,6 +44,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     };
 
     private float cubeSize = 2.0f;
+    private final float wallHeight = 4.0f;
     private float startX = -(mazeLayout[0].length * cubeSize) / 2.0f + (cubeSize / 2.0f);
     private float startZ = -(mazeLayout.length * cubeSize) / 2.0f + (cubeSize / 2.0f);
 
@@ -70,6 +78,9 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     private final float JUMP_STRENGTH = 0.22f;
     private final float PLAYER_HEIGHT = 1.0f;
     private TextRenderer textRenderer;
+    private Texture wallTexture;
+    private Texture floorTexture;
+    private Texture ceilingTexture;
 
     private void updateLook() {
         lookX = cameraX + (float) Math.cos(Math.toRadians(cameraAngle));
@@ -78,7 +89,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     }
 
     private float[] gridTo3D(int row, int col) {
-        return new float[]{startX + col * cubeSize, startZ + row * cubeSize};
+        return new float[] { startX + col * cubeSize, startZ + row * cubeSize };
     }
 
     // --- EXPLICIT COLLISION ANALYSIS ---
@@ -113,43 +124,72 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     private void drawCube(GL2 gl, float x, float y, float z, float size) {
         float half = size / 2.0f;
+        if (wallTexture != null) {
+            wallTexture.bind(gl);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+        }
         gl.glBegin(GL2.GL_QUADS);
         gl.glColor3f(0.5f, 0.5f, 0.5f);
         gl.glNormal3f(0.0f, 0.0f, 1.0f);
-        gl.glVertex3f(x - half, y - half, z + half);
-        gl.glVertex3f(x + half, y - half, z + half);
-        gl.glVertex3f(x + half, y + half, z + half);
-        gl.glVertex3f(x - half, y + half, z + half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x - half, 0.0f, z + half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x + half, 0.0f, z + half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x + half, wallHeight, z + half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x - half, wallHeight, z + half);
         gl.glColor3f(0.4f, 0.4f, 0.4f);
         gl.glNormal3f(0.0f, 0.0f, -1.0f);
-        gl.glVertex3f(x - half, y - half, z - half);
-        gl.glVertex3f(x - half, y + half, z - half);
-        gl.glVertex3f(x + half, y + half, z - half);
-        gl.glVertex3f(x + half, y - half, z - half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x - half, 0.0f, z - half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x - half, wallHeight, z - half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x + half, wallHeight, z - half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x + half, 0.0f, z - half);
         gl.glColor3f(0.6f, 0.6f, 0.6f);
         gl.glNormal3f(0.0f, 1.0f, 0.0f);
-        gl.glVertex3f(x - half, y + half, z - half);
-        gl.glVertex3f(x - half, y + half, z + half);
-        gl.glVertex3f(x + half, y + half, z + half);
-        gl.glVertex3f(x + half, y + half, z - half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x - half, wallHeight, z - half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x - half, wallHeight, z + half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x + half, wallHeight, z + half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x + half, wallHeight, z - half);
         gl.glColor3f(0.3f, 0.3f, 0.3f);
         gl.glNormal3f(0.0f, -1.0f, 0.0f);
-        gl.glVertex3f(x - half, y - half, z - half);
-        gl.glVertex3f(x + half, y - half, z - half);
-        gl.glVertex3f(x + half, y - half, z + half);
-        gl.glVertex3f(x - half, y - half, z + half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x - half, 0.0f, z - half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x + half, 0.0f, z - half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x + half, 0.0f, z + half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x - half, 0.0f, z + half);
         gl.glColor3f(0.45f, 0.45f, 0.45f);
         gl.glNormal3f(1.0f, 0.0f, 0.0f);
-        gl.glVertex3f(x + half, y - half, z - half);
-        gl.glVertex3f(x + half, y + half, z - half);
-        gl.glVertex3f(x + half, y + half, z + half);
-        gl.glVertex3f(x + half, y - half, z + half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x + half, 0.0f, z - half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x + half, wallHeight, z - half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x + half, wallHeight, z + half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x + half, 0.0f, z + half);
         gl.glColor3f(0.55f, 0.55f, 0.55f);
         gl.glNormal3f(-1.0f, 0.0f, 0.0f);
-        gl.glVertex3f(x - half, y - half, z - half);
-        gl.glVertex3f(x - half, y - half, z + half);
-        gl.glVertex3f(x - half, y + half, z + half);
-        gl.glVertex3f(x - half, y + half, z - half);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(x - half, 0.0f, z - half);
+        gl.glTexCoord2f(1.0f, 0.0f);
+        gl.glVertex3f(x - half, 0.0f, z + half);
+        gl.glTexCoord2f(1.0f, 1.0f);
+        gl.glVertex3f(x - half, wallHeight, z + half);
+        gl.glTexCoord2f(0.0f, 1.0f);
+        gl.glVertex3f(x - half, wallHeight, z - half);
         gl.glEnd();
     }
 
@@ -163,13 +203,13 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         // Quad 1: parallel to X
         gl.glVertex3f(x - half, 0.0f, z);
         gl.glVertex3f(x + half, 0.0f, z);
-        gl.glVertex3f(x + half, cubeSize, z);
-        gl.glVertex3f(x - half, cubeSize, z);
+        gl.glVertex3f(x + half, 2.5f, z);
+        gl.glVertex3f(x - half, 2.5f, z);
         // Quad 2: parallel to Z
         gl.glVertex3f(x, 0.0f, z - half);
         gl.glVertex3f(x, 0.0f, z + half);
-        gl.glVertex3f(x, cubeSize, z + half);
-        gl.glVertex3f(x, cubeSize, z - half);
+        gl.glVertex3f(x, 2.5f, z + half);
+        gl.glVertex3f(x, 2.5f, z - half);
 
         gl.glEnd();
         gl.glDisable(GL2.GL_BLEND);
@@ -189,27 +229,50 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     @Override
     public void init(GLAutoDrawable drawable) {
+        System.out.println("Working Directory: " + System.getProperty("user.dir"));
         GL2 gl = drawable.getGL().getGL2();
         gl.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         gl.glEnable(GL2.GL_DEPTH_TEST);
         gl.glEnable(GL2.GL_LIGHTING);
         gl.glEnable(GL2.GL_LIGHT0);
         gl.glEnable(GL2.GL_COLOR_MATERIAL);
-        
+
         textRenderer = new TextRenderer(new Font("SansSerif", Font.BOLD, 18));
-        
+
+        try {
+            File wf = new File("wall.png");
+            if (wf.exists()) {
+                BufferedImage img = ImageIO.read(wf);
+                wallTexture = AWTTextureIO.newTexture(drawable.getGLProfile(), img, true);
+            }
+
+            File ff = new File("floor.png");
+            if (ff.exists()) {
+                BufferedImage img = ImageIO.read(ff);
+                floorTexture = AWTTextureIO.newTexture(drawable.getGLProfile(), img, false);
+            }
+
+            File cf = new File("ceiling.png");
+            if (cf.exists()) {
+                BufferedImage img = ImageIO.read(cf);
+                ceilingTexture = AWTTextureIO.newTexture(drawable.getGLProfile(), img, false);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         updateLook();
         System.out.println("Portals active: [1][2] <-> [8][7]");
-        ((Window)drawable).setPointerVisible(false);
-        ((Window)drawable).confinePointer(true);
+        ((Window) drawable).setPointerVisible(false);
+        ((Window) drawable).confinePointer(true);
     }
 
     @Override
     public void display(GLAutoDrawable drawable) {
         GL2 gl = drawable.getGL().getGL2();
-        
+
         gl.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        
+
         gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
         gl.glLoadIdentity();
 
@@ -219,8 +282,10 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     private void runGameLogic(GL2 gl) {
 
-        if (teleportCooldown > 0) teleportCooldown--;
-        if (gravityCooldown > 0) gravityCooldown--;
+        if (teleportCooldown > 0)
+            teleportCooldown--;
+        if (gravityCooldown > 0)
+            gravityCooldown--;
 
         float nextX = cameraX;
         float nextZ = cameraZ;
@@ -291,23 +356,51 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         glu.gluLookAt(cameraX, cameraY, cameraZ, lookX, lookY, lookZ, 0.0f, isGravityFlipped ? -1.0f : 1.0f, 0.0f);
 
-        float[] lightPos = {cameraX, cameraY, cameraZ, 1.0f};
+        float[] lightPos = { cameraX, cameraY, cameraZ, 1.0f };
         gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION, lightPos, 0);
         gl.glLightf(GL2.GL_LIGHT0, GL2.GL_QUADRATIC_ATTENUATION, 0.02f);
 
+        gl.glEnable(GL2.GL_TEXTURE_2D);
+
+        if (floorTexture != null) {
+            floorTexture.bind(gl);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+        }
         gl.glBegin(GL2.GL_QUADS);
         gl.glNormal3f(0.0f, 1.0f, 0.0f);
-        gl.glColor3f(0.15f, 0.15f, 0.15f);
-        gl.glVertex3f(-20.0f, 0.0f, -20.0f);
-        gl.glColor3f(0.2f, 0.2f, 0.2f);
-        gl.glVertex3f(-20.0f, 0.0f, 20.0f);
-        gl.glColor3f(0.15f, 0.15f, 0.15f);
-        gl.glVertex3f(20.0f, 0.0f, 20.0f);
-        gl.glColor3f(0.2f, 0.2f, 0.2f);
-        gl.glVertex3f(20.0f, 0.0f, -20.0f);
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(-50.0f, 0.0f, -50.0f);
+        gl.glTexCoord2f(0.0f, 10.0f);
+        gl.glVertex3f(-50.0f, 0.0f, 50.0f);
+        gl.glTexCoord2f(10.0f, 10.0f);
+        gl.glVertex3f(50.0f, 0.0f, 50.0f);
+        gl.glTexCoord2f(10.0f, 0.0f);
+        gl.glVertex3f(50.0f, 0.0f, -50.0f);
+        gl.glEnd();
+
+        if (ceilingTexture != null) {
+            ceilingTexture.bind(gl);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+        }
+        gl.glBegin(GL2.GL_QUADS);
+        gl.glNormal3f(0.0f, -1.0f, 0.0f);
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glTexCoord2f(0.0f, 0.0f);
+        gl.glVertex3f(-50.0f, wallHeight, -50.0f);
+        gl.glTexCoord2f(0.0f, 10.0f);
+        gl.glVertex3f(-50.0f, wallHeight, 50.0f);
+        gl.glTexCoord2f(10.0f, 10.0f);
+        gl.glVertex3f(50.0f, wallHeight, 50.0f);
+        gl.glTexCoord2f(10.0f, 0.0f);
+        gl.glVertex3f(50.0f, wallHeight, -50.0f);
         gl.glEnd();
 
         drawMaze(gl);
+
+        gl.glDisable(GL2.GL_TEXTURE_2D);
 
         // Draw Gravity Trigger
         float[] pG = gridTo3D(5, 6);
@@ -331,33 +424,34 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-        textRenderer.draw(String.format("Coords: X=%.2f, Z=%.2f | Flipped: %b", cameraX, cameraZ, isGravityFlipped), WINDOW_WIDTH - 450, WINDOW_HEIGHT - 30);
+        textRenderer.draw(String.format("Coords: X=%.2f, Z=%.2f | Flipped: %b", cameraX, cameraZ, isGravityFlipped),
+                WINDOW_WIDTH - 450, WINDOW_HEIGHT - 30);
         textRenderer.endRendering();
     }
 
     private void drawMinimap(GL2 gl) {
         int w = 150;
         int h = 150;
-        
+
         gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glPushMatrix();
         gl.glLoadIdentity();
         glu.gluOrtho2D(0, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-        
+
         gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glPushMatrix();
         gl.glLoadIdentity();
-        
+
         gl.glDisable(GL2.GL_DEPTH_TEST);
         gl.glDisable(GL2.GL_LIGHTING);
-        
+
         float cellW = (float) w / mazeLayout[0].length;
         float cellH = (float) h / mazeLayout.length;
-        
+
         gl.glBegin(GL2.GL_QUADS);
-        for(int r = 0; r < mazeLayout.length; r++) {
-            for(int c = 0; c < mazeLayout[0].length; c++) {
-                if(mazeLayout[r][c] == 1) {
+        for (int r = 0; r < mazeLayout.length; r++) {
+            for (int c = 0; c < mazeLayout[0].length; c++) {
+                if (mazeLayout[r][c] == 1) {
                     gl.glColor3f(0.5f, 0.5f, 0.5f);
                 } else {
                     gl.glColor3f(0.1f, 0.1f, 0.1f);
@@ -369,10 +463,10 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
             }
         }
         gl.glEnd();
-        
+
         float pX = ((cameraX - startX + cubeSize / 2.0f) / cubeSize) * cellW;
         float pZ = ((cameraZ - startZ + cubeSize / 2.0f) / cubeSize) * cellH;
-        
+
         gl.glBegin(GL2.GL_QUADS);
         gl.glColor3f(1.0f, 0.0f, 0.0f);
         gl.glVertex2f(pX - 2, pZ - 2);
@@ -380,7 +474,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glVertex2f(pX + 2, pZ + 2);
         gl.glVertex2f(pX - 2, pZ + 2);
         gl.glEnd();
-        
+
         gl.glBegin(GL2.GL_LINE_LOOP);
         gl.glColor3f(0.0f, 0.0f, 0.0f);
         gl.glVertex2f(0, 0);
@@ -388,10 +482,10 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glVertex2f(w, h);
         gl.glVertex2f(0, h);
         gl.glEnd();
-        
+
         gl.glEnable(GL2.GL_DEPTH_TEST);
         gl.glEnable(GL2.GL_LIGHTING);
-        
+
         gl.glPopMatrix();
         gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glPopMatrix();
