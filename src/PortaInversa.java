@@ -218,7 +218,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
      * @param fboTexId  GL texture id from an FBO (>0), or 0 to use tint fallback
      */
     private void drawPortalFrame(GL2 gl, float x, float z,
-                                  float r, float g, float b, int fboTexId) {
+                                  float r, float g, float b, int fboTexId, boolean isZAligned) {
         float radiusX = 0.8f;
         float radiusY = 1.25f;
         float centerY = 1.25f;
@@ -238,59 +238,113 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         }
 
         // X-Aligned Face
-        gl.glBegin(GL2.GL_POLYGON);
-        for (int i = 0; i < segments; i++) {
-            double theta = 2.0 * Math.PI * i / segments;
-            float dx = (float)(radiusX * Math.cos(theta));
-            float dy = (float)(radiusY * Math.sin(theta));
-            float u = 0.5f + 0.5f * (float)Math.cos(theta);
-            float v = 0.5f - 0.5f * (float)Math.sin(theta);
-            gl.glTexCoord2f(u, v);
-            gl.glVertex3f(x + dx, centerY + dy, z);
+        if (!isZAligned) {
+            gl.glBegin(GL2.GL_POLYGON);
+            for (int i = 0; i < segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float dx = (float)(radiusX * Math.cos(theta));
+                float dy = (float)(radiusY * Math.sin(theta));
+                float u = 0.5f + 0.5f * (float)Math.cos(theta);
+                float v = 0.5f - 0.5f * (float)Math.sin(theta);
+                gl.glTexCoord2f(u, v);
+                gl.glVertex3f(x + dx, centerY + dy, z);
+            }
+            gl.glEnd();
         }
-        gl.glEnd();
 
         // Z-Aligned Face
-        gl.glBegin(GL2.GL_POLYGON);
-        for (int i = 0; i < segments; i++) {
-            double theta = 2.0 * Math.PI * i / segments;
-            float dx = (float)(radiusX * Math.cos(theta));
-            float dy = (float)(radiusY * Math.sin(theta));
-            float u = 0.5f + 0.5f * (float)Math.cos(theta);
-            float v = 0.5f - 0.5f * (float)Math.sin(theta);
-            gl.glTexCoord2f(u, v);
-            gl.glVertex3f(x, centerY + dy, z + dx);
+        if (isZAligned) {
+            gl.glBegin(GL2.GL_POLYGON);
+            for (int i = 0; i < segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float dx = (float)(radiusX * Math.cos(theta));
+                float dy = (float)(radiusY * Math.sin(theta));
+                float u = 0.5f + 0.5f * (float)Math.cos(theta);
+                float v = 0.5f - 0.5f * (float)Math.sin(theta);
+                gl.glTexCoord2f(u, v);
+                gl.glVertex3f(x, centerY + dy, z + dx);
+            }
+            gl.glEnd();
         }
-        gl.glEnd();
 
         if (hasTexture) gl.glDisable(GL2.GL_TEXTURE_2D);
         if (!hasTexture) gl.glDisable(GL2.GL_BLEND);
 
-        // ── Glowing border outline (brightness pulses with glowPhase) ───────────
-        float glow = 0.7f + 0.3f * (float) Math.sin(glowPhase);   // 0.4 → 1.0
-        gl.glLineWidth(3.0f);
-        gl.glColor3f(r * glow, g * glow, b * glow);
-        
-        // Border for X-aligned face
-        gl.glBegin(GL2.GL_LINE_LOOP);
-        for (int i = 0; i < segments; i++) {
-            double theta = 2.0 * Math.PI * i / segments;
-            float dx = (float)(radiusX * Math.cos(theta));
-            float dy = (float)(radiusY * Math.sin(theta));
-            gl.glVertex3f(x + dx, centerY + dy, z);
+        // ── Quad-Strip Glowing Rings ───────────
+        gl.glEnable(GL2.GL_BLEND);
+        gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+
+        float glow = 0.7f + 0.3f * (float) Math.sin(glowPhase);
+        float ringThick = 0.15f;
+        float glowThick = 0.25f;
+
+        // X-Aligned Rings
+        if (!isZAligned) {
+            gl.glBegin(GL2.GL_QUAD_STRIP);
+            for (int i = 0; i <= segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float cosT = (float) Math.cos(theta);
+                float sinT = (float) Math.sin(theta);
+                
+                gl.glColor4f(r, g, b, 1.0f);
+                gl.glVertex3f(x + radiusX * cosT, centerY + radiusY * sinT, z);
+                
+                gl.glColor4f(r * glow, g * glow, b * glow, 0.9f);
+                gl.glVertex3f(x + (radiusX + ringThick) * cosT, centerY + (radiusY + ringThick) * sinT, z);
+            }
+            gl.glEnd();
+
+            gl.glBegin(GL2.GL_QUAD_STRIP);
+            for (int i = 0; i <= segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float cosT = (float) Math.cos(theta);
+                float sinT = (float) Math.sin(theta);
+                
+                gl.glColor4f(r * glow, g * glow, b * glow, 0.9f);
+                gl.glVertex3f(x + (radiusX + ringThick) * cosT, centerY + (radiusY + ringThick) * sinT, z);
+                
+                gl.glColor4f(r, g, b, 0.0f);
+                gl.glVertex3f(x + (radiusX + ringThick + glowThick) * cosT, centerY + (radiusY + ringThick + glowThick) * sinT, z);
+            }
+            gl.glEnd();
         }
-        gl.glEnd();
-        
-        // Border for Z-aligned face
-        gl.glBegin(GL2.GL_LINE_LOOP);
-        for (int i = 0; i < segments; i++) {
-            double theta = 2.0 * Math.PI * i / segments;
-            float dx = (float)(radiusX * Math.cos(theta));
-            float dy = (float)(radiusY * Math.sin(theta));
-            gl.glVertex3f(x, centerY + dy, z + dx);
+
+        // Z-Aligned Rings
+        if (isZAligned) {
+            gl.glBegin(GL2.GL_QUAD_STRIP);
+            for (int i = 0; i <= segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float cosT = (float) Math.cos(theta);
+                float sinT = (float) Math.sin(theta);
+                
+                gl.glColor4f(r, g, b, 1.0f);
+                gl.glVertex3f(x, centerY + radiusY * sinT, z + radiusX * cosT);
+                
+                gl.glColor4f(r * glow, g * glow, b * glow, 0.9f);
+                gl.glVertex3f(x, centerY + (radiusY + ringThick) * sinT, z + (radiusX + ringThick) * cosT);
+            }
+            gl.glEnd();
+
+            gl.glBegin(GL2.GL_QUAD_STRIP);
+            for (int i = 0; i <= segments; i++) {
+                double theta = 2.0 * Math.PI * i / segments;
+                float cosT = (float) Math.cos(theta);
+                float sinT = (float) Math.sin(theta);
+                
+                gl.glColor4f(r * glow, g * glow, b * glow, 0.9f);
+                gl.glVertex3f(x, centerY + (radiusY + ringThick) * sinT, z + (radiusX + ringThick) * cosT);
+                
+                gl.glColor4f(r, g, b, 0.0f);
+                gl.glVertex3f(x, centerY + (radiusY + ringThick + glowThick) * sinT, z + (radiusX + ringThick + glowThick) * cosT);
+            }
+            gl.glEnd();
         }
-        gl.glEnd();
-        gl.glLineWidth(1.0f);
+
+        if (hasTexture) {
+            gl.glDisable(GL2.GL_BLEND);
+        } else {
+            gl.glDisable(GL2.GL_BLEND);
+        }
     }
 
     private void drawMaze(GL2 gl) {
@@ -610,11 +664,11 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         // Draw Portal A (Blue) — live view from Portal B (texIdA)
         float[] pA = gridTo3D(1, 2);
-        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f, texIdA[0]);
+        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f, texIdA[0], false);
 
         // Draw Portal B (Orange) — live view from Portal A (texIdB)
         float[] pB = gridTo3D(8, 7);
-        drawPortalFrame(gl, pB[0], pB[1], 1.0f, 0.5f, 0.0f, texIdB[0]);
+        drawPortalFrame(gl, pB[0], pB[1], 1.0f, 0.5f, 0.0f, texIdB[0], true);
 
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
