@@ -331,7 +331,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-        textRenderer.draw(String.format("Coords: X=%.2f, Z=%.2f | Flipped: %b", cameraX, cameraZ, isGravityFlipped), WINDOW_WIDTH - 320, WINDOW_HEIGHT - 30);
+        textRenderer.draw(String.format("Coords: X=%.2f, Z=%.2f | Flipped: %b", cameraX, cameraZ, isGravityFlipped), WINDOW_WIDTH - 450, WINDOW_HEIGHT - 30);
         textRenderer.endRendering();
     }
 
