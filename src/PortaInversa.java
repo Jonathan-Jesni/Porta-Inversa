@@ -82,6 +82,21 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     private Texture floorTexture;
     private Texture ceilingTexture;
 
+    // --- PHASE 2: FBO (one per portal for bidirectional views) ---
+    private int[] fboIdA       = new int[1];   // captures view from B → displayed on A
+    private int[] texIdA       = new int[1];
+    private int[] depthIdA     = new int[1];
+
+    private int[] fboIdB       = new int[1];   // captures view from A → displayed on B
+    private int[] texIdB       = new int[1];
+    private int[] depthIdB     = new int[1];
+
+    private final int FBO_WIDTH  = 512;
+    private final int FBO_HEIGHT = 800;
+
+    /** Drives the pulsing portal border brightness (0 → 2π loop). */
+    private float glowPhase = 0.0f;
+
     private void updateLook() {
         lookX = cameraX + (float) Math.cos(Math.toRadians(cameraAngle));
         lookY = cameraY;
@@ -193,26 +208,89 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glEnd();
     }
 
-    private void drawPortalFrame(GL2 gl, float x, float z, float r, float g, float b) {
-        gl.glEnable(GL2.GL_BLEND);
-        gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
-        gl.glBegin(GL2.GL_QUADS);
-        gl.glColor4f(r, g, b, 0.6f);
+    /**
+     * Draws the portal opening — a textured quad using an FBO render
+     * plus a bright glowing border outline.
+     *
+     * FBO textures are stored bottom-up in OpenGL, so Y tex-coords are
+     * flipped (1→0 bottom, 0→1 top) to correct the upside-down image.
+     *
+     * @param fboTexId  GL texture id from an FBO (>0), or 0 to use tint fallback
+     */
+    private void drawPortalFrame(GL2 gl, float x, float z,
+                                  float r, float g, float b, int fboTexId) {
+        float radiusX = 0.8f;
+        float radiusY = 1.25f;
+        float centerY = 1.25f;
+        int segments = 32;
+        boolean hasTexture = (fboTexId > 0);
 
-        float half = 0.8f;
-        // Quad 1: parallel to X
-        gl.glVertex3f(x - half, 0.0f, z);
-        gl.glVertex3f(x + half, 0.0f, z);
-        gl.glVertex3f(x + half, 2.5f, z);
-        gl.glVertex3f(x - half, 2.5f, z);
-        // Quad 2: parallel to Z
-        gl.glVertex3f(x, 0.0f, z - half);
-        gl.glVertex3f(x, 0.0f, z + half);
-        gl.glVertex3f(x, 2.5f, z + half);
-        gl.glVertex3f(x, 2.5f, z - half);
+        // ── Portal surface ────────────────────────────────────────────────
+        if (hasTexture) {
+            gl.glEnable(GL2.GL_TEXTURE_2D);
+            gl.glBindTexture(GL2.GL_TEXTURE_2D, fboTexId);
+            gl.glColor3f(1.0f, 1.0f, 1.0f);   // no tint — show raw texture
+        } else {
+            gl.glDisable(GL2.GL_TEXTURE_2D);
+            gl.glEnable(GL2.GL_BLEND);
+            gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+            gl.glColor4f(r, g, b, 0.7f);
+        }
 
+        // X-Aligned Face
+        gl.glBegin(GL2.GL_POLYGON);
+        for (int i = 0; i < segments; i++) {
+            double theta = 2.0 * Math.PI * i / segments;
+            float dx = (float)(radiusX * Math.cos(theta));
+            float dy = (float)(radiusY * Math.sin(theta));
+            float u = 0.5f + 0.5f * (float)Math.cos(theta);
+            float v = 0.5f - 0.5f * (float)Math.sin(theta);
+            gl.glTexCoord2f(u, v);
+            gl.glVertex3f(x + dx, centerY + dy, z);
+        }
         gl.glEnd();
-        gl.glDisable(GL2.GL_BLEND);
+
+        // Z-Aligned Face
+        gl.glBegin(GL2.GL_POLYGON);
+        for (int i = 0; i < segments; i++) {
+            double theta = 2.0 * Math.PI * i / segments;
+            float dx = (float)(radiusX * Math.cos(theta));
+            float dy = (float)(radiusY * Math.sin(theta));
+            float u = 0.5f + 0.5f * (float)Math.cos(theta);
+            float v = 0.5f - 0.5f * (float)Math.sin(theta);
+            gl.glTexCoord2f(u, v);
+            gl.glVertex3f(x, centerY + dy, z + dx);
+        }
+        gl.glEnd();
+
+        if (hasTexture) gl.glDisable(GL2.GL_TEXTURE_2D);
+        if (!hasTexture) gl.glDisable(GL2.GL_BLEND);
+
+        // ── Glowing border outline (brightness pulses with glowPhase) ───────────
+        float glow = 0.7f + 0.3f * (float) Math.sin(glowPhase);   // 0.4 → 1.0
+        gl.glLineWidth(3.0f);
+        gl.glColor3f(r * glow, g * glow, b * glow);
+        
+        // Border for X-aligned face
+        gl.glBegin(GL2.GL_LINE_LOOP);
+        for (int i = 0; i < segments; i++) {
+            double theta = 2.0 * Math.PI * i / segments;
+            float dx = (float)(radiusX * Math.cos(theta));
+            float dy = (float)(radiusY * Math.sin(theta));
+            gl.glVertex3f(x + dx, centerY + dy, z);
+        }
+        gl.glEnd();
+        
+        // Border for Z-aligned face
+        gl.glBegin(GL2.GL_LINE_LOOP);
+        for (int i = 0; i < segments; i++) {
+            double theta = 2.0 * Math.PI * i / segments;
+            float dx = (float)(radiusX * Math.cos(theta));
+            float dy = (float)(radiusY * Math.sin(theta));
+            gl.glVertex3f(x, centerY + dy, z + dx);
+        }
+        gl.glEnd();
+        gl.glLineWidth(1.0f);
     }
 
     private void drawMaze(GL2 gl) {
@@ -225,6 +303,143 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
                 }
             }
         }
+    }
+
+    /**
+     * Renders the static scene geometry (floor, ceiling, maze walls) from
+     * whatever camera is already set in the modelview matrix. Used by both
+     * the FBO off-screen pass and the main on-screen pass.
+     */
+    private void renderSceneGeometry(GL2 gl) {
+        gl.glEnable(GL2.GL_TEXTURE_2D);
+
+        // Floor
+        if (floorTexture != null) {
+            floorTexture.bind(gl);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+        }
+        gl.glBegin(GL2.GL_QUADS);
+        gl.glNormal3f(0.0f, 1.0f, 0.0f);
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glTexCoord2f(0.0f,  0.0f); gl.glVertex3f(-50.0f, 0.0f, -50.0f);
+        gl.glTexCoord2f(0.0f, 10.0f); gl.glVertex3f(-50.0f, 0.0f,  50.0f);
+        gl.glTexCoord2f(10.0f,10.0f); gl.glVertex3f( 50.0f, 0.0f,  50.0f);
+        gl.glTexCoord2f(10.0f, 0.0f); gl.glVertex3f( 50.0f, 0.0f, -50.0f);
+        gl.glEnd();
+
+        // Ceiling
+        if (ceilingTexture != null) {
+            ceilingTexture.bind(gl);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
+            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
+        }
+        gl.glBegin(GL2.GL_QUADS);
+        gl.glNormal3f(0.0f, -1.0f, 0.0f);
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+        gl.glTexCoord2f(0.0f,  0.0f); gl.glVertex3f(-50.0f, wallHeight, -50.0f);
+        gl.glTexCoord2f(0.0f, 10.0f); gl.glVertex3f(-50.0f, wallHeight,  50.0f);
+        gl.glTexCoord2f(10.0f,10.0f); gl.glVertex3f( 50.0f, wallHeight,  50.0f);
+        gl.glTexCoord2f(10.0f, 0.0f); gl.glVertex3f( 50.0f, wallHeight, -50.0f);
+        gl.glEnd();
+
+        drawMaze(gl);
+        gl.glDisable(GL2.GL_TEXTURE_2D);
+    }
+
+    /**
+     * Renders the scene from a virtual camera at (exitX, eyeY, exitZ) looking
+     * in exitAngle, and captures the result into the given FBO.
+     *
+     * @param targetFboId  the FBO to render into (fboIdA[0] or fboIdB[0])
+     */
+    private void renderPortalView(GL2 gl, int targetFboId,
+                                   float exitX, float exitZ, float exitAngle) {
+        int[] prevViewport = new int[4];
+        gl.glGetIntegerv(GL2.GL_VIEWPORT, prevViewport, 0);
+
+        // ── Redirect rendering to the target FBO ──────────────────────────
+        gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, targetFboId);
+        gl.glViewport(0, 0, FBO_WIDTH, FBO_HEIGHT);
+
+        gl.glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
+        gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
+
+        // ── Projection (same FOV as main camera) ──────────────────────────
+        gl.glMatrixMode(GL2.GL_PROJECTION);
+        gl.glPushMatrix();
+        gl.glLoadIdentity();
+        glu.gluPerspective(45.0, (double) FBO_WIDTH / FBO_HEIGHT, 0.1, 100.0);
+
+        // ── Camera placed at the exit portal, looking in exitAngle ────────
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
+        gl.glPushMatrix();
+        gl.glLoadIdentity();
+
+        float eyeY   = cameraY;   // preserve player's vertical height
+        float lookAtX = exitX + (float) Math.cos(Math.toRadians(exitAngle));
+        float lookAtZ = exitZ + (float) Math.sin(Math.toRadians(exitAngle));
+        glu.gluLookAt(exitX, eyeY, exitZ,
+                      lookAtX, eyeY, lookAtZ,
+                      0.0f, isGravityFlipped ? -1.0f : 1.0f, 0.0f);
+
+        // Light follows the virtual camera
+        float[] vLightPos = { exitX, eyeY, exitZ, 1.0f };
+        gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION, vLightPos, 0);
+
+        renderSceneGeometry(gl);
+
+        // ── Restore matrices & default framebuffer ────────────────────────
+        gl.glPopMatrix();
+        gl.glMatrixMode(GL2.GL_PROJECTION);
+        gl.glPopMatrix();
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
+
+        gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+        gl.glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+    }
+
+    /**
+     * Allocates one complete FBO (color texture + depth renderbuffer).
+     * Writes the generated IDs into the supplied arrays.
+     */
+    private void allocateFBO(GL2 gl, int[] fboOut, int[] texOut, int[] depthOut) {
+        // FBO
+        gl.glGenFramebuffers(1, fboOut, 0);
+        gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fboOut[0]);
+
+        // Color texture
+        gl.glGenTextures(1, texOut, 0);
+        gl.glBindTexture(GL2.GL_TEXTURE_2D, texOut[0]);
+        gl.glTexImage2D(GL2.GL_TEXTURE_2D, 0, GL2.GL_RGB, FBO_WIDTH, FBO_HEIGHT,
+                0, GL2.GL_RGB, GL2.GL_UNSIGNED_BYTE, null);
+        gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_LINEAR);
+        gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_LINEAR);
+        gl.glFramebufferTexture2D(GL2.GL_FRAMEBUFFER, GL2.GL_COLOR_ATTACHMENT0,
+                GL2.GL_TEXTURE_2D, texOut[0], 0);
+
+        // Depth renderbuffer
+        gl.glGenRenderbuffers(1, depthOut, 0);
+        gl.glBindRenderbuffer(GL2.GL_RENDERBUFFER, depthOut[0]);
+        gl.glRenderbufferStorage(GL2.GL_RENDERBUFFER, GL2.GL_DEPTH_COMPONENT,
+                FBO_WIDTH, FBO_HEIGHT);
+        gl.glFramebufferRenderbuffer(GL2.GL_FRAMEBUFFER, GL2.GL_DEPTH_ATTACHMENT,
+                GL2.GL_RENDERBUFFER, depthOut[0]);
+
+        // ── Validate the FBO is complete ───────────────────────────────────
+        int status = gl.glCheckFramebufferStatus(GL2.GL_FRAMEBUFFER);
+        if (status != GL2.GL_FRAMEBUFFER_COMPLETE) {
+            System.err.println("[FBO] Incomplete framebuffer! Status: 0x"
+                    + Integer.toHexString(status));
+        }
+
+        gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
+    }
+
+    /** Allocates both portal FBOs. Called once from init(). */
+    private void setupFBO(GL2 gl) {
+        allocateFBO(gl, fboIdA, texIdA, depthIdA);   // view from B → shown on A
+        allocateFBO(gl, fboIdB, texIdB, depthIdB);   // view from A → shown on B
     }
 
     @Override
@@ -261,6 +476,8 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
             e.printStackTrace();
         }
 
+        setupFBO(gl);
+
         updateLook();
         System.out.println("Portals active: [1][2] <-> [8][7]");
         ((Window) drawable).setPointerVisible(false);
@@ -271,8 +488,24 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     public void display(GLAutoDrawable drawable) {
         GL2 gl = drawable.getGL().getGL2();
 
-        gl.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        // Advance portal glow animation (~1.5 Hz at 60 fps)
+        glowPhase += 0.016f;
+        if (glowPhase > 2.0f * Math.PI) glowPhase -= (float)(2.0f * Math.PI);
 
+        // ── PHASE 2: Off-screen FBO passes (bidirectional) ───────────────
+        float[] portalA = gridTo3D(1, 2);
+        float[] portalB = gridTo3D(8, 7);
+
+        // FBO-A: virtual cam at Portal B, looking back → texture shown on Portal A
+        renderPortalView(gl, fboIdA[0],
+                portalB[0], portalB[1], cameraAngle + 180f);
+
+        // FBO-B: virtual cam at Portal A, looking back → texture shown on Portal B
+        renderPortalView(gl, fboIdB[0],
+                portalA[0], portalA[1], cameraAngle + 180f);
+
+        // ── Main on-screen pass ───────────────────────────────────────────
+        gl.glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
         gl.glLoadIdentity();
 
@@ -360,47 +593,8 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_POSITION, lightPos, 0);
         gl.glLightf(GL2.GL_LIGHT0, GL2.GL_QUADRATIC_ATTENUATION, 0.02f);
 
-        gl.glEnable(GL2.GL_TEXTURE_2D);
-
-        if (floorTexture != null) {
-            floorTexture.bind(gl);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
-        }
-        gl.glBegin(GL2.GL_QUADS);
-        gl.glNormal3f(0.0f, 1.0f, 0.0f);
-        gl.glColor3f(1.0f, 1.0f, 1.0f);
-        gl.glTexCoord2f(0.0f, 0.0f);
-        gl.glVertex3f(-50.0f, 0.0f, -50.0f);
-        gl.glTexCoord2f(0.0f, 10.0f);
-        gl.glVertex3f(-50.0f, 0.0f, 50.0f);
-        gl.glTexCoord2f(10.0f, 10.0f);
-        gl.glVertex3f(50.0f, 0.0f, 50.0f);
-        gl.glTexCoord2f(10.0f, 0.0f);
-        gl.glVertex3f(50.0f, 0.0f, -50.0f);
-        gl.glEnd();
-
-        if (ceilingTexture != null) {
-            ceilingTexture.bind(gl);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_S, GL2.GL_REPEAT);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_WRAP_T, GL2.GL_REPEAT);
-        }
-        gl.glBegin(GL2.GL_QUADS);
-        gl.glNormal3f(0.0f, -1.0f, 0.0f);
-        gl.glColor3f(1.0f, 1.0f, 1.0f);
-        gl.glTexCoord2f(0.0f, 0.0f);
-        gl.glVertex3f(-50.0f, wallHeight, -50.0f);
-        gl.glTexCoord2f(0.0f, 10.0f);
-        gl.glVertex3f(-50.0f, wallHeight, 50.0f);
-        gl.glTexCoord2f(10.0f, 10.0f);
-        gl.glVertex3f(50.0f, wallHeight, 50.0f);
-        gl.glTexCoord2f(10.0f, 0.0f);
-        gl.glVertex3f(50.0f, wallHeight, -50.0f);
-        gl.glEnd();
-
-        drawMaze(gl);
-
-        gl.glDisable(GL2.GL_TEXTURE_2D);
+        // Draw main scene geometry (floor, ceiling, maze) via shared helper
+        renderSceneGeometry(gl);
 
         // Draw Gravity Trigger
         float[] pG = gridTo3D(5, 6);
@@ -414,13 +608,13 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         gl.glVertex3f(pG[0] - 0.8f, 0.01f, pG[1] + 0.8f);
         gl.glEnd();
 
-        // Draw Portal A (Blue)
+        // Draw Portal A (Blue) — live view from Portal B (texIdA)
         float[] pA = gridTo3D(1, 2);
-        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f);
+        drawPortalFrame(gl, pA[0], pA[1], 0.0f, 0.5f, 1.0f, texIdA[0]);
 
-        // Draw Portal B (Orange)
+        // Draw Portal B (Orange) — live view from Portal A (texIdB)
         float[] pB = gridTo3D(8, 7);
-        drawPortalFrame(gl, pB[0], pB[1], 1.0f, 0.5f, 0.0f);
+        drawPortalFrame(gl, pB[0], pB[1], 1.0f, 0.5f, 0.0f, texIdB[0]);
 
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -505,6 +699,19 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     @Override
     public void dispose(GLAutoDrawable drawable) {
+        GL2 gl = drawable.getGL().getGL2();
+
+        // Release Portal A FBO resources
+        gl.glDeleteFramebuffers(1,   fboIdA,   0);
+        gl.glDeleteTextures(1,       texIdA,   0);
+        gl.glDeleteRenderbuffers(1,  depthIdA, 0);
+
+        // Release Portal B FBO resources
+        gl.glDeleteFramebuffers(1,   fboIdB,   0);
+        gl.glDeleteTextures(1,       texIdB,   0);
+        gl.glDeleteRenderbuffers(1,  depthIdB, 0);
+
+        System.out.println("[FBO] GPU resources released.");
     }
 
     // --- KEYBOARD CONTROLS ---
