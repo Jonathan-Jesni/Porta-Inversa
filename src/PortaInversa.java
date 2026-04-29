@@ -98,6 +98,14 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     /** Drives the pulsing portal border brightness (0 → 2π loop). */
     private float glowPhase = 0.0f;
 
+    private float watcherX = 0.0f;
+    private float watcherZ = 0.0f;
+    private float watcherSpeed = 0.04f; // Slightly slower than the player's walk speed
+    private int survivalTimer = 3600; // 60 seconds at 60 FPS
+    private boolean isGameOver = false;
+    private boolean isWin = false;
+    private float watcherPulse = 0.0f;
+
     private void updateLook() {
         float radYaw = (float) Math.toRadians(cameraAngle);
         float radPitch = (float) Math.toRadians(cameraPitch);
@@ -112,6 +120,26 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     }
 
     // --- EXPLICIT COLLISION ANALYSIS ---
+    private void drawWatcher(GL2 gl) {
+        gl.glPushMatrix();
+        gl.glTranslatef(watcherX, wallHeight / 2.0f + (float)Math.sin(watcherPulse)*0.5f, watcherZ);
+        gl.glDisable(GL2.GL_TEXTURE_2D);
+        gl.glEnable(GL2.GL_BLEND);
+        gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+        gl.glColor4f(1.0f, 0.0f, 0.0f, 0.8f);
+        float s = 0.5f;
+        gl.glBegin(GL2.GL_QUADS);
+        gl.glVertex3f(-s, -s, s); gl.glVertex3f(s, -s, s); gl.glVertex3f(s, s, s); gl.glVertex3f(-s, s, s);
+        gl.glVertex3f(-s, -s, -s); gl.glVertex3f(-s, s, -s); gl.glVertex3f(s, s, -s); gl.glVertex3f(s, -s, -s);
+        gl.glVertex3f(-s, s, -s); gl.glVertex3f(-s, s, s); gl.glVertex3f(s, s, s); gl.glVertex3f(s, s, -s);
+        gl.glVertex3f(-s, -s, -s); gl.glVertex3f(s, -s, -s); gl.glVertex3f(s, -s, s); gl.glVertex3f(-s, -s, s);
+        gl.glVertex3f(s, -s, -s); gl.glVertex3f(s, s, -s); gl.glVertex3f(s, s, s); gl.glVertex3f(s, -s, s);
+        gl.glVertex3f(-s, -s, -s); gl.glVertex3f(-s, -s, s); gl.glVertex3f(-s, s, s); gl.glVertex3f(-s, s, -s);
+        gl.glEnd();
+        gl.glDisable(GL2.GL_BLEND);
+        gl.glPopMatrix();
+    }
+
     private boolean isValidPosition(float targetX, float targetZ) {
         int rows = mazeLayout.length;
         int cols = mazeLayout[0].length;
@@ -403,6 +431,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         drawMaze(gl);
         gl.glDisable(GL2.GL_TEXTURE_2D);
+        drawWatcher(gl);
     }
 
     /**
@@ -573,6 +602,26 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     private void runGameLogic(GL2 gl) {
 
+        watcherPulse += 0.05f;
+
+        if (!isGameOver) {
+            survivalTimer--;
+            if (survivalTimer <= 0) {
+                isGameOver = true;
+                isWin = true;
+            }
+
+            float dx = cameraX - watcherX;
+            float dz = cameraZ - watcherZ;
+            double distW = Math.sqrt(dx*dx + dz*dz);
+            if (distW < 1.2f) {
+                isGameOver = true;
+                isWin = false;
+            } else {
+                watcherX += (float)((dx / distW) * watcherSpeed);
+                watcherZ += (float)((dz / distW) * watcherSpeed);
+            }
+
         if (teleportCooldown > 0)
             teleportCooldown--;
 
@@ -647,6 +696,8 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
             onGravityPad = false; // Reset the trigger once the player walks away
         }
 
+        } // END OF !isGameOver block
+
         updateLook();
 
         glu.gluLookAt(cameraX, cameraY, cameraZ, lookX, lookY, lookZ, 0.0f, isGravityFlipped ? -1.0f : 1.0f, 0.0f);
@@ -679,6 +730,18 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         drawPortalFrame(gl, pB[0], pB[1], 1.0f, 0.5f, 0.0f, texIdB[0], true);
 
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
+        textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+        if (!isGameOver) {
+            textRenderer.draw(String.format("Time to Survive: %ds", survivalTimer / 60), WINDOW_WIDTH - 250, WINDOW_HEIGHT - 210);
+        } else if (isWin) {
+            textRenderer.setColor(0.0f, 1.0f, 0.0f, 1.0f);
+            textRenderer.draw("YOU SURVIVED!", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2);
+        } else {
+            textRenderer.setColor(1.0f, 0.0f, 0.0f, 1.0f);
+            textRenderer.draw("THE WATCHER CAUGHT YOU!", WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2);
+        }
+
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
         textRenderer.draw(String.format("Coords: X=%.2f, Z=%.2f | Flipped: %b", cameraX, cameraZ, isGravityFlipped),
                 WINDOW_WIDTH - 450, WINDOW_HEIGHT - 30);
@@ -724,11 +787,23 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         float pZ = ((cameraZ - startZ + cubeSize / 2.0f) / cubeSize) * cellH;
 
         gl.glBegin(GL2.GL_QUADS);
-        gl.glColor3f(1.0f, 0.0f, 0.0f);
+        gl.glColor3f(1.0f, 1.0f, 1.0f); // Player is White
         gl.glVertex2f(pX - 2, pZ - 2);
         gl.glVertex2f(pX + 2, pZ - 2);
         gl.glVertex2f(pX + 2, pZ + 2);
         gl.glVertex2f(pX - 2, pZ + 2);
+        gl.glEnd();
+
+        // Draw the Watcher
+        float wX = ((watcherX - startX + cubeSize / 2.0f) / cubeSize) * cellW;
+        float wZ = ((watcherZ - startZ + cubeSize / 2.0f) / cubeSize) * cellH;
+
+        gl.glBegin(GL2.GL_QUADS);
+        gl.glColor3f(1.0f, 0.0f, 0.0f); // Pure Red
+        gl.glVertex2f(wX - 3, wZ - 3);
+        gl.glVertex2f(wX + 3, wZ - 3);
+        gl.glVertex2f(wX + 3, wZ + 3);
+        gl.glVertex2f(wX - 3, wZ + 3);
         gl.glEnd();
 
         gl.glBegin(GL2.GL_LINE_LOOP);
