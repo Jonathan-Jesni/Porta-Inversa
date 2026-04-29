@@ -5,13 +5,14 @@
 ## 🎯 The Objective
 You are trapped in a surreal, non-Euclidean maze. The moment you spawn, **The Watcher**—a hostile, ghostly red entity—will begin dynamically tracking your coordinates. 
 
-**You must survive for exactly 60 seconds.** You cannot outrun it forever. You must use the environment's portals and gravity mechanics to outmaneuver it.
+**You must survive for exactly 60 seconds.** You cannot outrun it forever. You must use the environment's portals and gravity mechanics to outmaneuver it. 
+*(Note: If you die, simply press Space to instantly restart the physics loop).*
 
 ## 🎮 Controls
+* **`Space`** - Start Game / Restart Game / Jump
 * **`W` `A` `S` `D`** - Movement
 * **`Mouse`** - 360° FPS Camera (Pitch/Yaw)
 * **`Shift`** - Sprint
-* **`Space`** - Jump
 * **`Esc`** - Quit Game / Free Mouse Pointer
 
 ## 🧠 Core Computer Graphics Concepts

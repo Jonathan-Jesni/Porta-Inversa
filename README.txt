@@ -15,10 +15,10 @@ must utilize teleportation portals and gravity-flipping mechanics.
 
 CONTROLS
 --------
+- Space      : Start Game / Restart Game (Menu) / Jump (In-Game)
 - W, A, S, D : Move forward, left, backward, and right
 - Mouse      : 360-degree First-Person camera (Look around, up, and down)
 - Shift      : Sprint
-- Space      : Jump
 - Esc        : Quit Game (Releases confined mouse pointer)
 
 GAMEPLAY MECHANICS & OBJECTIVES
@@ -27,6 +27,7 @@ GAMEPLAY MECHANICS & OBJECTIVES
 - Do not let the glowing red "Watcher" touch you, or it is Game Over.
 - Dive through the blue and orange Portals to instantly teleport across the map.
 - Step on the green Gravity Pad to rotate the world and walk on the ceiling.
+- Arcade Restart: Press Space after a Game Over to instantly try again.
 
 IMPLEMENTED COMPUTER GRAPHICS CONCEPTS
 --------------------------------------
