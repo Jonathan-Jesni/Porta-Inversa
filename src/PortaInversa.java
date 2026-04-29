@@ -69,7 +69,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
     private int teleportCooldown = 0;
     private boolean isGravityFlipped = false;
-    private int gravityCooldown = 0;
+    private boolean onGravityPad = false;
 
     private boolean shiftPressed, spacePressed;
     private boolean isJumping = false;
@@ -571,8 +571,6 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         if (teleportCooldown > 0)
             teleportCooldown--;
-        if (gravityCooldown > 0)
-            gravityCooldown--;
 
         float nextX = cameraX;
         float nextZ = cameraZ;
@@ -634,12 +632,15 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         }
 
         float[] gravTrigger = gridTo3D(5, 6);
-        if (gravityCooldown == 0) {
-            double distG = Math.sqrt(Math.pow(cameraX - gravTrigger[0], 2) + Math.pow(cameraZ - gravTrigger[1], 2));
-            if (distG < 0.8f) {
+        double distG = Math.sqrt(Math.pow(cameraX - gravTrigger[0], 2) + Math.pow(cameraZ - gravTrigger[1], 2));
+
+        if (distG < 0.8f) {
+            if (!onGravityPad) {
                 isGravityFlipped = !isGravityFlipped;
-                gravityCooldown = 60;
+                onGravityPad = true; // Lock the trigger so it doesn't fire again
             }
+        } else {
+            onGravityPad = false; // Reset the trigger once the player walks away
         }
 
         updateLook();
