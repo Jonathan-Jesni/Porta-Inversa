@@ -103,6 +103,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     private float watcherSpeed = 0.04f; // Slightly slower than the player's walk speed
     private int survivalTimer = 3600; // 60 seconds at 60 FPS
     private boolean isGameOver = false;
+    private boolean gameStarted = false;
     private boolean isWin = false;
     private float watcherPulse = 0.0f;
 
@@ -604,7 +605,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
 
         watcherPulse += 0.05f;
 
-        if (!isGameOver) {
+        if (gameStarted && !isGameOver) {
             survivalTimer--;
             if (survivalTimer <= 0) {
                 isGameOver = true;
@@ -732,14 +733,23 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-        if (!isGameOver) {
-            textRenderer.draw(String.format("Time to Survive: %ds", survivalTimer / 60), WINDOW_WIDTH - 250, WINDOW_HEIGHT - 210);
-        } else if (isWin) {
-            textRenderer.setColor(0.0f, 1.0f, 0.0f, 1.0f);
-            textRenderer.draw("YOU SURVIVED!", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2);
+        if (!gameStarted) {
+            textRenderer.draw("PORTA INVERSA", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 + 50);
+            textRenderer.draw("Press SPACE to Start", WINDOW_WIDTH / 2 - 110, WINDOW_HEIGHT / 2);
+            textRenderer.draw("Survive 60s. Evade The Watcher.", WINDOW_WIDTH / 2 - 160, WINDOW_HEIGHT / 2 - 40);
+        } else if (isGameOver) {
+            if (isWin) {
+                textRenderer.setColor(0.0f, 1.0f, 0.0f, 1.0f);
+                textRenderer.draw("YOU SURVIVED!", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2);
+            } else {
+                textRenderer.setColor(1.0f, 0.0f, 0.0f, 1.0f);
+                textRenderer.draw("THE WATCHER CAUGHT YOU!", WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2);
+            }
+            textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+            textRenderer.draw("Press SPACE to Restart", WINDOW_WIDTH / 2 - 110, WINDOW_HEIGHT / 2 - 40);
         } else {
-            textRenderer.setColor(1.0f, 0.0f, 0.0f, 1.0f);
-            textRenderer.draw("THE WATCHER CAUGHT YOU!", WINDOW_WIDTH / 2 - 120, WINDOW_HEIGHT / 2);
+            // Normal HUD
+            textRenderer.draw(String.format("Time to Survive: %ds", survivalTimer / 60), WINDOW_WIDTH - 250, WINDOW_HEIGHT - 210);
         }
 
         textRenderer.setColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -857,6 +867,30 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         // Essential: Allow user to escape since the mouse is trapped
         if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
             System.exit(0);
+        }
+
+        if (!gameStarted) {
+            if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                gameStarted = true;
+            }
+            return; // Ignore all other movement keys until the game starts
+        }
+
+        if (isGameOver) {
+            if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                // Reset the entire game state for a new run
+                isGameOver = false;
+                isWin = false;
+                survivalTimer = 3600;
+                cameraX = -7.0f; // Reset to your default start X
+                cameraZ = -7.0f; // Reset to your default start Z
+                cameraY = 1.0f;
+                watcherX = 0.0f; // Reset Watcher to its default spawn
+                watcherZ = 0.0f;
+                isGravityFlipped = false;
+                onGravityPad = false;
+            }
+            return; // Ignore other keys while game over screen is showing
         }
 
         switch (e.getKeyCode()) {
