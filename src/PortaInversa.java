@@ -61,6 +61,7 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     private float lookZ = 0.0f;
 
     private float cameraAngle = 0.0f;
+    private float cameraPitch = 0.0f;
     private float walkSpeed = 0.08f;
     private float sprintSpeed = 0.18f;
 
@@ -98,9 +99,12 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
     private float glowPhase = 0.0f;
 
     private void updateLook() {
-        lookX = cameraX + (float) Math.cos(Math.toRadians(cameraAngle));
-        lookY = cameraY;
-        lookZ = cameraZ + (float) Math.sin(Math.toRadians(cameraAngle));
+        float radYaw = (float) Math.toRadians(cameraAngle);
+        float radPitch = (float) Math.toRadians(cameraPitch);
+        
+        lookX = cameraX + (float) (Math.cos(radPitch) * Math.cos(radYaw));
+        lookY = cameraY + (float) Math.sin(radPitch);
+        lookZ = cameraZ + (float) (Math.cos(radPitch) * Math.sin(radYaw));
     }
 
     private float[] gridTo3D(int row, int col) {
@@ -838,7 +842,15 @@ public class PortaInversa implements GLEventListener, KeyListener, MouseListener
         }
 
         int deltaX = e.getX() - centerX;
+        int deltaY = e.getY() - centerY;
+
         cameraAngle += (isGravityFlipped ? -deltaX : deltaX) * mouseSensitivity;
+        cameraPitch -= (isGravityFlipped ? -deltaY : deltaY) * mouseSensitivity;
+
+        // Clamp pitch to prevent neck-breaking backflips
+        if (cameraPitch > 89.0f) cameraPitch = 89.0f;
+        if (cameraPitch < -89.0f) cameraPitch = -89.0f;
+
         updateLook();
 
         window.warpPointer(centerX, centerY);
